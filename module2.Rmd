@@ -14,7 +14,7 @@ data$waist_hip_ratio <- data$ABDOMEN/data$HIP
 ```
 
 ```{r}
-set.seed(10086)
+set.seed(100)
 trainIndex <- createDataPartition(data$BODYFAT, p = 0.7, list = FALSE)
 training_data <- data[trainIndex, ]
 testing_data <- data[-trainIndex, ]
@@ -34,8 +34,52 @@ ggplot(testing_data, aes(x = BODYFAT, y = predictions)) +
 
 shapiro.test(lm_model$residuals)
 plot(lm_model)
+
+cor(predictions, testing_data$BODYFAT)^2
+
+
+data.frame(predictions, testing_data$BODYFAT)
+mae^2
 ```
 
+```{r}
+# Set the number of bootstrap iterations
+num_iterations <- 100
+
+# Initialize a vector to store R-squared values
+rsquared_values <- numeric(num_iterations)
+
+
+total_rows <- nrow(data)
+
+# Loop through each iteration
+for (i in 1:num_iterations) {
+  
+  # Create a bootstrap sample by sampling with replacement from the training data
+  bootstrap_indices <- sample(total_rows, replace = TRUE)
+  bootstrap_sample <- data[bootstrap_indices, ]
+  
+  trainIndex <- createDataPartition(bootstrap_sample$BODYFAT, p = 0.7, list = FALSE)
+  training_data <- bootstrap_sample[trainIndex, ]
+  testing_data <- bootstrap_sample[-trainIndex, ]
+  
+  # Fit a linear regression model to the bootstrap sample
+  lm_model_bootstrap <- lm(BODYFAT ~ ADIPOSITY + waist_hip_ratio + NECK, data = training_data)
+  
+  # Predict on the testing data
+  predictions_bootstrap <- predict(lm_model_bootstrap, newdata = testing_data)
+  
+  # Calculate R-squared for the current bootstrap iteration
+  rsquared_values[i] <- 1 - sum((testing_data$BODYFAT - predictions_bootstrap)^2) / sum((testing_data$BODYFAT - mean(testing_data$BODYFAT))^2)
+}
+
+# Calculate the mean R-squared over all iterations
+mean_rsquared <- mean(rsquared_values)
+
+# Print the mean R-squared
+print(paste("Mean R-squared:", mean_rsquared))
+
+```
 
 
 
