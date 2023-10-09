@@ -1,0 +1,46 @@
+---
+title: "STAT 679 module2"
+author: "Feiyun Yan"
+date: "2023-10-03"
+output: html_document
+---
+
+```{r, message=FALSE, warning = FALSE}
+library(ggplot2)
+library(caret)
+data <- read.csv("Bodyfat.csv")
+data$waist_hip_ratio <- data$ABDOMEN/data$HIP
+
+```
+
+```{r}
+set.seed(10086)
+trainIndex <- createDataPartition(data$BODYFAT, p = 0.7, list = FALSE)
+training_data <- data[trainIndex, ]
+testing_data <- data[-trainIndex, ]
+
+lm_model <- lm(BODYFAT ~ ADIPOSITY + waist_hip_ratio, data = training_data)
+summary(lm_model)
+predictions <- predict(lm_model, newdata = testing_data)
+
+mae <- mean(abs(predictions - testing_data$BODYFAT))
+print(paste("Mean Absolute Error (MAE):", mae))
+
+ggplot(testing_data, aes(x = BODYFAT, y = predictions)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
+  labs(x = "Actual Body Fat Percentage", y = "Predicted Body Fat Percentage") +
+  ggtitle("Actual vs. Predicted Body Fat Perc7entage")
+
+shapiro.test(lm_model$residuals)
+plot(lm_model)
+```
+
+
+
+
+
+
+
+
+
