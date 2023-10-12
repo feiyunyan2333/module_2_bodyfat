@@ -35,6 +35,14 @@ opts_knit$set(width = 75)
 ```{r}
 df <- read.csv("BodyFat.csv")
 head(df)
+
+df$IDNO <- NULL
+z_score <- scale(df)
+row_z_score <- rowSums(z_score^2)
+outlier <- row_z_scores > 45
+df$Status <- ifelse(outlier, "Outlier", "Normal")
+df <- df[, c(1, ncol(df), 2:(ncol(df)-1))]
+
 #summary(df)
 
 #Brozek formula: BF=(4.57/ρ − 4.142) × 100[14]
@@ -59,13 +67,6 @@ center2 <- round((df$WEIGHT/df$HEIGHT^2)*703,3)
 sum((df$ADIPOSITY<center2+1) & (df$ADIPOSITY>center2-1))
 bmi_out_ind <- which(((df$ADIPOSITY<center2+1) & (df$ADIPOSITY>center2-1))==F)
 bmi_out_ind
-
-df$IDNO <- NULL
-z_score <- scale(df)
-row_z_score <- rowSums(z_score^2)
-outlier <- row_z_scores > 45
-df$Status <- ifelse(outlier, "Outlier", "Normal")
-df <- df[, c(1, ncol(df), 2:(ncol(df)-1))]
 ```
 
 
