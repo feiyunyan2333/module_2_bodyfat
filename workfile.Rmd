@@ -60,14 +60,12 @@ sum((df$ADIPOSITY<center2+1) & (df$ADIPOSITY>center2-1))
 bmi_out_ind <- which(((df$ADIPOSITY<center2+1) & (df$ADIPOSITY>center2-1))==F)
 bmi_out_ind
 
-outliers<- read.csv("BodyFat.csv")
-
-outliers$IDNO <- NULL
-z_score <- scale(outliers)
+df$IDNO <- NULL
+z_score <- scale(df)
 row_z_score <- rowSums(z_score^2)
 outlier <- row_z_scores > 45
-outliers$Status <- ifelse(outliers "Outlier", "Normal")
-outliers <- outliers[, c(1, ncol(outliers), 2:(ncol(outliers)-1))]
+df$Status <- ifelse(outlier, "Outlier", "Normal")
+df <- df[, c(1, ncol(df), 2:(ncol(df)-1))]
 ```
 
 
