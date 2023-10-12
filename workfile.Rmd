@@ -40,8 +40,7 @@ df$IDNO <- NULL
 z_score <- scale(df)
 row_z_score <- rowSums(z_score^2)
 outlier <- row_z_scores > 45
-df$Status <- ifelse(outlier, "Outlier", "Normal")
-df <- df[, c(1, ncol(df), 2:(ncol(df)-1))]
+df <- df[!outlier, ]
 
 #summary(df)
 
