@@ -102,12 +102,12 @@ As shown before all the coefficients passed the t-test of significance under $p=
 
 We choose our model because among all the linear models containing the ratio our model has the best r square in the  training data which indicate a good accuracy, as for the testing data, the model with Thigh beats our model but it has only 0.606 R square in testing data which indicates over-fitting and lake of robustness. We also tried full model random forest, they have worse performance in r square and robustness. PCA solves the multicllinearity but can not be easily interpreted.
 
-| **Model**    | **Adiposity** | **Neck** | **Thigh** |**Regression Tree**|
+| **Model**    | **Adiposity** | **Neck** | **Thigh** |**Chest** |**Reg Tree**|
 |:-----------:|:-------------:|:--------:|:--------:|:-------------:|:------:|
-| **Training_rsq** |     0.691  |   0.627  |   0.710  |*root node error*
-| **Training_mse** |    18.03   |   21.75  |   16.89     |*58.25*
-| **Testing_rsq**  |     0.655  |   0.598  |   0.606  |0.4969
-| **Testing_mse**  |    20.21   |   23.51  |   23.20     |30.13
+| **Training_rsq** |     0.691  |   0.627  |   0.710  |  0.667 |*root node error*
+| **Training_mse** |    18.03   |   21.75  |   16.89     | 19.42 |*58.25*
+| **Testing_rsq**  |     0.655  |   0.598  |   0.606  |   0.593 |0.4969
+| **Testing_mse**  |    20.21   |   23.51  |   23.20     |  23.80 |30.13
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
@@ -148,6 +148,15 @@ mod5_fit <- predict(pruned_tree,newdata = df_test)
 sum((mod5_fit-df_test$BODYFAT)^2)/nrow(df_test)
 cor(mod5_fit,df_test$BODYFAT)^2
 
+mod7 <- lm(BODYFAT~waist_hip_ratio+CHEST,data = df_train)
+#summary(mod3)
+VIF(mod7)
+MSE(mod7)
+rsq::rsq(mod7)
+mod7_fit <- predict(mod7,newdata = df_test )
+sum((mod7_fit- df_test$BODYFAT)^2)/nrow(df_test)
+cor(mod7_fit,df_test$BODYFAT)^2
+
 ```
 
 
@@ -158,7 +167,11 @@ prp(pruned_tree,
     extra=1, #display number of obs. for each terminal node
     roundint=F, #don't round to integers in output
     digits=5)
-
+library(leaps)
+bic_select <- regsubsets(BODYFAT~.,data=df_clear)
+plot(bic_select)
+bic_info <- summary(bic_select)
+#ggplot(bic_select)
 
 
 ```
