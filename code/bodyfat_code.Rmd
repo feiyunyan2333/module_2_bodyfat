@@ -1,0 +1,442 @@
+---
+output:
+  
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+# A two factor linear model in bodyfat
+
+Feiyun Yan, Srivats, Ziang Zeng
+
+**Background and data cleaning**
+
+Our group report focuses on building a two-factor linear regression model to describe the relevance between the bodyfat and other indexes of human body. Obesity and related health issues have become a global concern in recent years. However, measuring the body fat directly can be impractical or inconvenient. Understanding the factors that contribute to bodyfat can help us predict the index, reveal the factor relating to obesity and overall health, which can be helpful for public health, medical research, and individual well-being. 
+
+Our data contains 252 observations of 17 variables without missing value. From the age distribution we can see the data can not represent the whole population, the minimum age is 22. There are outliers based on body fat calculation. We found 4 rows doesn’t follow Percentage of Body Fat (i.e. 100*B) = 495/D – 450 known as Siri formular considering the round-off error. We remove the negative or near-zero value of bodyfat after recovering it from the density.Moreover, we found that No.216 has highest body fat which is obviously abnormal. Sample 216 has higher body fat compared with Sample 39 whose body indexes are greater than his so we removed 216.  Similarly, the outliers that violate the BMI formular 703 x weight (lbs) / [height (in)]^2 are removed because we don’t know which one is the original data or backup. As for the redundant variable, we choose adiposity (BMI) other than weight and height and body fat other than density.
+
+**Final model**
+
+The final model is $Y=\beta_0+\beta_1 X_1+\beta_2 X_2+\epsilon$ where$\beta_0$ is the intercept,  $\beta_1$ is the coefficient of waist hip ratio which is **abdomen/hip**, $\beta_2$ is the coefficient of adiposity(BMI).
+$$Bodyfat=-65.06+70.47\times Waist~hip~ratio+0.7456\times Adiposity$$
+
+We assume the model follow the basic linear model assumption: independently normally distributed residual, no perfect multicollinearity, residuals are independent to response variable.
+We choose waist hip ratio because the ratio is commonly used in clinics to measure the obesity. Human body tends to put the fat tissue around the abdomen and organs to keep balance, and hip can show the skeleton size of the human body which doesn't store fat as much as abdomen.[D.C. Chan et al.](#chan-2003) That's why we are interested in the relationship between the ratio and human body fat.
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+library(rmdformats)
+library(ggplot2)
+library(ggthemes)
+library(DescTools)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(plotly)
+## Global options
+options(max.print = "75")
+opts_chunk$set(cache = FALSE,
+               prompt = FALSE,
+               tidy = FALSE,
+               comment = NA,
+               message = FALSE,
+               warning = FALSE)
+opts_knit$set(width = 75)
+
+mytheme <- theme(plot.title=element_text(face="bold.italic",
+                                         size="14", color="brown"),
+                 axis.title=element_text(face="bold.italic",
+                                         size=10, color="brown"),
+                 axis.text=element_text(face="bold", size=9,
+                                        color="darkblue"),
+                 panel.background=element_rect(fill="white",
+                                               color="darkblue"),
+                 panel.grid.major.y=element_line(color="grey",
+                                                 linetype=1),
+                 panel.grid.minor.y=element_line(color="grey",
+                                                 linetype=2),
+                 panel.grid.minor.x=element_blank(),
+                 legend.position="top") 
+
+df <- read.csv("BodyFat.csv")
+center1 <- round((4.57/df$DENSITY)-4.142,3)*100
+sum((df$BODYFAT<center1+1) & (df$BODYFAT>center1-1))
+density_out_ind <- which(((df$BODYFAT<center1+1) & (df$BODYFAT>center1-1))==F)
+df$BODYFAT[density_out_ind[1:3]] <-round((4.95/df$DENSITY[density_out_ind[1:3]]-4.5)*100,1) 
+
+
+center2 <- round((df$WEIGHT/df$HEIGHT^2)*703,3)
+sum((df$ADIPOSITY<center2+1) & (df$ADIPOSITY>center2-1))
+bmi_out_ind <- which(((df$ADIPOSITY<center2+1) & (df$ADIPOSITY>center2-1))==F)
+bmi_out_ind
+
+df_clear <- df[-c(density_out_ind[4:5],bmi_out_ind
+),]
+df_clear$waist_hip_ratio <- df_clear$ABDOMEN/df_clear$HIP
+df_clear <- df_clear[!colnames(df_clear)%in% c("IDNO","DENSITY","WEIGHT","HEIGHT","ABDOMEN","HIP")]
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(123)
+train_ind <- sample(1:nrow(df_clear),size = round(0.75*nrow(df_clear)))
+df_train <- df_clear[train_ind,]
+df_test <- df_clear[-train_ind,]
+mod1 <- lm(BODYFAT~waist_hip_ratio+ADIPOSITY,data = df_train)
+#summary(mod1)
+
+sm <- as.data.frame(summary(mod1)$coefficients) 
+sm$`Pr(>|t|)`<- c("<2e-16","<2e-16","3.89e-10")
+table <- kable(sm)
+table
+```
+
+For example, a man with 1 waist hip ratio  and 25 in BMI is expected to have a body fat at 19.16%. The estimated parameters of  waist hip ratio and adiposty are 70.475 and 0.746 which means one unity change in waist hip ratio can leads to 70.475 unit change in body fat, one unity change of adiposity can leads to 0.746 unit change of body fat.
+
+**Rationale and Model Diagnostics**
+
+As shown before all the coefficients passed the t-test of significance under $p=0.05$, and also the model passed the F-test with $p<2e-16$ by which we conclude that the model is reasonable. The R square in testing data is 0.6904 after bootstrapping which means 69.04% percent of the variance of body fat is explained by the predictors.
+
+We choose our model because among all the linear models containing the ratio our model has the best r square in the  training data which indicate a good accuracy, as for the testing data, the model with Thigh beats our model but it has only 0.606 R square in testing data which indicates over-fitting and lake of robustness. We also tried full model random forest, they have worse performance in r square and robustness. PCA solves the multicllinearity but can not be easily interpreted.
+
+| **Model**    | **Adiposity** | **Neck** | **Thigh** |**Regression Tree**|
+|:-----------:|:-------------:|:--------:|:--------:|:-------------:|:------:|
+| **Training_rsq** |     0.691  |   0.627  |   0.710  |*root node error*
+| **Training_mse** |    18.03   |   21.75  |   16.89     |*58.25*
+| **Testing_rsq**  |     0.655  |   0.598  |   0.606  |0.4969
+| **Testing_mse**  |    20.21   |   23.51  |   23.20     |30.13
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+mod1 <- lm(BODYFAT~waist_hip_ratio+ADIPOSITY,data = df_train)
+#summary(mod1)
+VIF(mod1)
+MSE(mod1)
+rsq::rsq(mod1)
+mod1_fit <- predict(mod1,newdata = df_test )
+sum((mod1_fit- df_test$BODYFAT)^2)/nrow(df_test)
+cor(mod1_fit,df_test$BODYFAT)^2
+
+
+mod2 <- lm(BODYFAT~waist_hip_ratio+NECK,data = df_train)
+#summary(mod2)
+VIF(mod2)
+MSE(mod2)
+rsq::rsq(mod2)
+mod2_fit <- predict(mod2,newdata = df_test )
+sum((mod2_fit- df_test$BODYFAT)^2)/nrow(df_test)
+cor(mod2_fit,df_test$BODYFAT)^2
+
+mod3 <- lm(BODYFAT~waist_hip_ratio+THIGH,data = df_train)
+#summary(mod3)
+VIF(mod3)
+MSE(mod3)
+rsq::rsq(mod3)
+mod3_fit <- predict(mod3,newdata = df_test )
+sum((mod3_fit- df_test$BODYFAT)^2)/nrow(df_test)
+cor(mod3_fit,df_test$BODYFAT)^2
+
+mod4 <- randomForest(BODYFAT~.,data=df_train)
+#summary(mod4)
+mod5 <- rpart(BODYFAT~.,df_train,method = "anova")
+best <- mod5$cptable[which.min(mod5$cptable[,"xerror"]),"CP"]
+pruned_tree <- prune(mod5, cp=best)
+mod5_fit <- predict(pruned_tree,newdata = df_test)
+sum((mod5_fit-df_test$BODYFAT)^2)/nrow(df_test)
+cor(mod5_fit,df_test$BODYFAT)^2
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+#plot the pruned tree
+prp(pruned_tree,
+    faclen=0, #use full names for factor labels
+    extra=1, #display number of obs. for each terminal node
+    roundint=F, #don't round to integers in output
+    digits=5)
+
+
+
+```
+
+
+
+
+
+Although the regression tree doesn't has good results as linear model, it also provides evidence in variable selection through the variable importance. Similarly the variable selection through BIC principle  suggest waist_hip_ratio, adiposty, neck and thigh as predictors in the model has least BIC value. However, including all these variable leads to significant multicollinearity and weak robustness.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+cs_trControl = trainControl(
+   method = "cv",
+   number = 10,
+   savePredictions = "final"       # save predictions for the optimal tuning parameter
+)
+set.seed(1234)
+cs_mdl_cart2 = train(
+   BODYFAT ~ ., 
+   data = df_train, 
+   method = "rpart",
+   tuneLength = 5,
+   metric = "xerror",
+   trControl = cs_trControl
+)
+#print(cs_mdl_cart2)
+#plot(varImp(cs_mdl_cart2), main="Variable Importance")
+# cs_mdl_cart2$variable.importance %>% 
+#    data.frame() %>%
+#    rownames_to_column(var = "Feature") %>%
+#    rename(Overall = '.') %>%
+#    ggplot(aes(x = fct_reorder(Feature, Overall), y = Overall)) +
+#    geom_pointrange(aes(ymin = 0, ymax = Overall), color = "cadetblue", size = .3) +
+#    theme_minimal() +
+#    coord_flip() +
+#    labs(x = "", y = "", title = "Variable Importance with Simple Regression")
+
+p1 <- ggplot(varImp(cs_mdl_cart2), aes(x = rownames(var_importance), y = Overall)) +
+  geom_bar(stat = "identity", fill = "royalblue") +
+  labs(title = "Variable Importance", x = "Variable", y = "Importance") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+mytheme
+#p1
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+# Load necessary libraries
+library(ggplot2)
+library(plotly)
+
+
+
+# Create a ggplot2 plot
+scatter_plot <- ggplot(data = df_train, aes(x = waist_hip_ratio, y = ADIPOSITY, z = BODYFAT)) +
+  geom_point(aes(color = BODYFAT)) +
+  geom_smooth(method = "lm", formula = BODYFAT~waist_hip_ratio+ADIPOSITY, linetype = "solid", color = "blue", size = 1) +
+  labs(title = "3D Scatter Plot with Linear Model") +
+  scale_color_gradient(low = "lightblue", high = "darkblue") +
+  theme_minimal()
+
+# Convert to a plotly object for 3D interactivity
+plotly_plot <- ggplotly(scatter_plot)
+
+# Display the interactive 3D scatter plot
+#plotly_plot
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+# Set the number of bootstrap iterations
+num_iterations <- 100
+
+# Initialize a vector to store R-squared values
+rsquared_values <- numeric(num_iterations)
+
+
+total_rows <- nrow(df_clear)
+set.seed(123)
+# Loop through each iteration
+for (i in 1:num_iterations) {
+  
+  # Create a bootstrap sample by sampling with replacement from the training data
+  bootstrap_indices <- sample(total_rows, replace = TRUE)
+  bootstrap_sample <- df_clear[bootstrap_indices, ]
+  
+  trainIndex <- createDataPartition(bootstrap_sample$BODYFAT, p = 0.7, list = FALSE)
+  training_data <- bootstrap_sample[trainIndex, ]
+  testing_data <- bootstrap_sample[-trainIndex, ]
+  
+  # Fit a linear regression model to the bootstrap sample
+  lm_model_bootstrap <- lm(BODYFAT ~ ADIPOSITY + waist_hip_ratio + NECK, data = training_data)
+  
+  # Predict on the testing data
+  predictions_bootstrap <- predict(lm_model_bootstrap, newdata = testing_data)
+  
+  # Calculate R-squared for the current bootstrap iteration
+  rsquared_values[i] <- 1 - sum((testing_data$BODYFAT - predictions_bootstrap)^2) / sum((testing_data$BODYFAT - mean(testing_data$BODYFAT))^2)
+}
+
+# Calculate the mean R-squared over all iterations
+mean_rsquared <- mean(rsquared_values)
+
+# Print the mean R-squared
+print(paste("Mean R-squared:", mean_rsquared))
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+# Generate example data
+set.seed(123)
+x1 <- df_clear$waist_hip_ratio
+x2 <- df_clear$ADIPOSITY
+y <- df_clear$BODYFAT
+
+
+# Create a grid of points for the hyperplane
+x1_grid <- seq(min(x1), max(x1), length = 200)
+x2_grid <- seq(min(x2), max(x2), length = 200)
+grid <- expand.grid(waist_hip_ratio = x1_grid, ADIPOSITY = x2_grid)
+
+# Make predictions for the grid
+grid$y_pred <- predict(mod1, newdata = grid)
+
+# Create a 3D scatter plot using plotly
+scatter_plot <- plot_ly(data = grid, x = ~x1, y = ~x2, z = ~y_pred, type = "surface", mode = "markers", marker = list(size = 5, opacity = 0.7)) %>%
+  add_trace(data = data.frame(x1, x2, y), x = ~x1, y = ~x2, z = ~y, type = "scatter3d", mode = "markers", marker = list(size = 5, color = ~y, colorscale = "Viridis")) %>%
+  layout(scene = list(title = "3D Scatter Plot with Hyperplane", xaxis = list(title = "waist_hip_ratio"), yaxis = list(title = "ADIPOSITY"), zaxis = list(title = "BODYFAT")))
+
+# Display the interactive 3D scatter plot with hyperplane
+#scatter_plot
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+# library("plot3D")
+# 
+# # set the x, y, and z variables
+# set.seed(123)
+# x <- rnorm(100)
+# y <- rnorm(100)
+# z <- 2 * x1 - 3 * x2 + rnorm(100)
+# 
+# # Compute the linear regression 
+# fit <- lm(z ~ x + y)
+# 
+# # create a grid from the x and y values (min to max) and predict values for every point
+# # this will become the regression plane
+# grid.lines = 40
+# x.pred <- seq(min(x), max(x), length.out = grid.lines)
+# y.pred <- seq(min(y), max(y), length.out = grid.lines)
+# xy <- expand.grid( x = x.pred, y = y.pred)
+# z.pred <- matrix(predict(fit, newdata = xy), 
+#                  nrow = grid.lines, ncol = grid.lines)
+# 
+# # create the fitted points for droplines to the surface
+# fitpoints <- predict(fit)
+# 
+# # scatter plot with regression plane
+# scatter3D(x, y, z, pch = 19, cex = 1,colvar = NULL, col="red", 
+#           theta = 20, phi = 10, bty="b",
+#           xlab = "Radio", ylab = "TV", zlab = "Sales",  
+#           surf = list(x = x.pred, y = y.pred, z = z.pred,  
+#                       facets = TRUE, fit = fitpoints, col=ramp.col (col = c("dodgerblue3","seagreen2"), n = 300, alpha=0.9), border="black"), main = "Advertising")
+```
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=T,fig.width = 16,fig.width=11}
+# Load necessary libraries
+library(ggplot2)
+library(broom)
+
+# Create diagnostic plots for the linear regression model mod1
+diagnostics <- augment(mod1)
+
+# Identify outliers using a threshold (adjust the threshold as needed)
+outlier_threshold <- 2  # Adjust this threshold value as needed
+cooks_dist <- cooks.distance(mod1)
+
+
+# Residuals vs. Fitted Values (A scatterplot of residuals vs. predicted values)
+residuals_vs_fitted <- ggplot(diagnostics, aes(.fitted, .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs. Fitted Values", x = "Fitted Values", y = "Residuals")+mytheme+theme(plot.title=element_text(face="bold.italic",size="10", color="brown"))
+
+# Normal Q-Q Plot
+qq_plot <- ggplot(diagnostics, aes(sample = .std.resid)) +
+  geom_qq() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  labs(title = "Normal Q-Q Plot", x = "Theoretical Quantiles", y = "Standardized Residuals")+mytheme+theme(plot.title=element_text(face="bold.italic",size="10", color="brown"))
+
+# Scale-Location Plot (Square root of absolute residuals vs. Fitted Values)
+scale_location_plot <- ggplot(diagnostics, aes(.fitted, sqrt(abs(.std.resid))) ) +
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  labs(title = "Scale-Location Plot", x = "Fitted Values", y = "sqrt(|Standardized Residuals|)")+mytheme+theme(plot.title=element_text(face="bold.italic",size="10", color="brown"))
+
+residual_vs_leverage <- ggplot(diagnostics, aes(.hat, .std.resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_point(data = filter(diagnostics, abs(.std.resid) > outlier_threshold), aes(.hat, .std.resid), color = "red", shape = 16, size = 3) +  # Add red points for outliers
+  geom_text(data = filter(diagnostics, cooks_dist > 2 * (ncol(diagnostics) + 1) / nrow(diagnostics)), aes(label = .rownames), vjust = -1) +
+  labs(title = "Residual vs. Leverage Plot", x = "Leverage", y = "Standardized Residuals")+mytheme+theme(plot.title=element_text(face="bold.italic",size="10", color="brown"))
+
+
+# Arrange the diagnostic plots in a grid
+library(gridExtra)
+#grid.arrange(residuals_vs_fitted, qq_plot, scale_location_plot,residual_vs_leverage, ncol = 2)
+#grid.arrange(p1, arrangeGrob(residuals_vs_fitted, qq_plot, ncol = 2), arrangeGrob(scale_location_plot, residual_vs_leverage, ncol = 2), ncol = 1)
+grid.arrange(arrangeGrob(p1,widths = 2), arrangeGrob(residuals_vs_fitted, qq_plot, scale_location_plot,residual_vs_leverage, ncol = 2), ncol = 2)
+
+# To view the diagnostic plots, you may need to run this code in your R environment.
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+shapiro.test(residuals(mod1))
+whitestrap::white_test(mod1)
+```
+
+
+The plots above shows the verification of the assumptions mentioned before, in which the residuals is independent to fitted values because there is no obvious pattern and the white's test accept $H_0$ of Homoskedasticity with $p=0.8359$. Also the residuals are normally distributed which pass the Shapiro normality test with $p=0.2937$(can not reject $H_0$). To test multicollinearity, we use VIF which shows a vif value 1.778 < 5 meaning there is no obvious multicollinearity. At last,  the residuals vs leverage plot shows there exists a outlier No.39 who has largest weight in the data. Removing this outlier, we saw a increase in the r square to 0.6977 in training data.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,include=F}
+df_new <- df_clear[-39,]
+
+set.seed(123)
+train_ind <- sample(1:nrow(df_new),size = round(0.75*nrow(df_new)))
+df_train_new <- df_new[train_ind,]
+df_test_new <- df_new[-train_ind,]
+mod_new <- lm(BODYFAT~waist_hip_ratio+ADIPOSITY,data = df_train_new)
+#summary(mod1)
+VIF(mod_new)
+MSE(mod_new)
+rsq::rsq(mod_new)
+mod_new_fit <- predict(mod_new,newdata = df_test_new )
+sum((mod_new_fit- df_test_new$BODYFAT)^2)/nrow(df_test_new)
+cor(mod_new_fit,df_test_new$BODYFAT)^2
+```
+
+**Conclusion**
+
+In conclusion, our two-factor linear model shows the relationship between the body fat and waist hip ration as well as BMI, one can use our model to measure their body fat with index can be conveniently measured. Due to the simplicity of our model, one can easily understand and apply it to new data.  
+
+However, there are still weakness of our model. Firstly, our r square in the testing data is not good enough, which implies there are still other effects of body fat that our model hasn't include, for example the nonlinear effects. Secondly, we don't consider about the interaction effect of our predictor in the model which could be a future work.
+
+
+**Contribution**: Srivats makes the PPT and the presentation, Ziang Zeng completes the summary and the modeling code. Feiyun Yan make shiny app and provide key inspiration of model, we do the pre-modeling and EDA together.
+
+
+
+
+
+
+
+\newpage
+# References
+<div id="chan-2003"></div>
+
+Chan, D.C., G.F. Watts, P.H.R. Barrett, and V. Burke. "Waist Circumference, Waist-to-Hip Ratio and Body Mass Index as Predictors of Adipose Tissue Compartments in Men." *QJM: An International Journal of Medicine*, vol. 96, no. 6, June 2003, pp. 441-447. [https://doi.org/10.1093/qjmed/hcg069](https://doi.org/10.1093/qjmed/hcg069).
+
+
+
+
+
+
+
